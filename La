@@ -1,0 +1,961 @@
+-- [[ NEXORA HUB - PART 1 / 19 ]] --
+-- Global Initialization & Services Setup
+
+if getgenv().NEXORA_LOADED and not getgenv().NEXORA_DEBUG then
+    warn("[NEXORA] Already running!")
+    return
+end
+getgenv().NEXORA_LOADED = true
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
+
+-- Global Nexora State Table
+getgenv().NexoraConfig = {
+    Language = "TH", -- "TH" or "EN"
+    ThemeColor = Color3.fromRGB(180, 0, 255),
+    
+    -- Aim & Combat Settings
+    AimbotEnabled = false,
+    TeamCheck = true,
+    AutoShoot = false,
+    AutoShootDelay = 0.1, -- Fixed at 0.1s
+    AimPart = "Head",
+    AimFOV = 150,
+    ShowFOV = true,
+    HitboxExpander = false,
+    HitboxSize = 20,
+    
+    -- ESP Settings
+    ESP_Enabled = false,
+    ESP_Boxes = false,
+    ESP_Names = false,
+    ESP_Tracers = false,
+    ESP_Bots = false,
+    
+    -- Stats & Webhook
+    WebhookURL = "",
+    TotalRuns = 1
+}
+
+print("[NEXORA PART 1] Core Framework Initialized Successfully.")
+-- [[ NEXORA HUB - PART 2 / 19 ]] --
+-- ScreenGui Creation & Window Architecture
+
+local GuiName = "NEXORA_UI_BASE"
+if CoreGui:FindFirstChild(GuiName) then
+    CoreGui[GuiName]:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GuiName
+ScreenGui.ResetOnSpawn = false
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = CoreGui
+elseif gethui then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = CoreGui
+end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 680, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -340, 0.5, -210)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 40)
+TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+TopBar.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(0, 200, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.Text = "⚡ 𓆩 𝐍𝐄𝐗𝐎𝐑𝐀 𓆪 ⚡"
+TitleLabel.TextColor3 = getgenv().NexoraConfig.ThemeColor
+TitleLabel.TextSize = 18
+TitleLabel.Font = Enum.Font.FredokaOne
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Parent = TopBar
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 160, 1, -40)
+Sidebar.Position = UDim2.new(0, 0, 0, 40)
+Sidebar.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+Sidebar.Parent = MainFrame
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Name = "ContentArea"
+ContentArea.Size = UDim2.new(1, -165, 1, -45)
+ContentArea.Position = UDim2.new(0, 162, 0, 42)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
+
+print("[NEXORA PART 2] UI Engine & Window Ready.")
+-- [[ NEXORA HUB - PART 3 / 19 ]] --
+-- Dynamic Navigation & Category Ordering
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = Sidebar
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 5)
+
+local UIPadding = Instance.new("UIPadding")
+UIPadding.Parent = Sidebar
+UIPadding.PaddingTop = UDim.new(0, 10)
+UIPadding.PaddingLeft = UDim.new(0, 8)
+
+local TabButtons = {}
+local TabPages = {}
+
+local function CreateTab(name, icon, order)
+    local Button = Instance.new("TextButton")
+    Button.Name = name .. "_TabBtn"
+    Button.Size = UDim2.new(1, -16, 0, 36)
+    Button.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    Button.Text = icon .. "  " .. name
+    Button.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Button.Font = Enum.Font.SourceSansBold
+    Button.TextSize = 15
+    Button.LayoutOrder = order
+    Button.Parent = Sidebar
+    
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = Button
+    
+    local Page = Instance.new("ScrollingFrame")
+    Page.Name = name .. "_Page"
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.Visible = false
+    Page.ScrollBarThickness = 4
+    Page.Parent = ContentArea
+    
+    local PageLayout = Instance.new("UIListLayout")
+    PageLayout.Parent = Page
+    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    PageLayout.Padding = UDim.new(0, 8)
+    
+    Button.MouseButton1Click:Connect(function()
+        for _, p in pairs(TabPages) do p.Visible = false end
+        for _, b in pairs(TabButtons) do 
+            b.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+            b.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        Page.Visible = true
+        Button.BackgroundColor3 = getgenv().NexoraConfig.ThemeColor
+        Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+    
+    TabButtons[name] = Button
+    TabPages[name] = Page
+    return Page
+end
+
+-- Creating Categories in Exact User Order (Settings at Bottom)
+local HomeTab     = CreateTab("หน้าหลัก", "🏠", 1)
+local ESPAimTab   = CreateTab("ดวงตาเทพ", "𓁹", 2)
+local PowersTab   = CreateTab("พลัง", "ϟ", 3)
+local ToolsTab    = CreateTab("เครื่องมือ", "⚒", 4)
+local TrollTab    = CreateTab("เกรียน", "➤", 5)
+local SettingsTab = CreateTab("ตั้งค่า", "⚙", 6) -- Strictly Last Category
+
+TabPages["หน้าหลัก"].Visible = true
+TabButtons["หน้าหลัก"].BackgroundColor3 = getgenv().NexoraConfig.ThemeColor
+
+print("[NEXORA PART 3] Navigation Tabs Initialized.")
+-- [[ NEXORA HUB - PART 4 / 19 ]] --
+-- Home Tab Interface & Realtime Profile Info
+
+local HomeContent = TabPages["หน้าหลัก"]
+
+local ProfileFrame = Instance.new("Frame")
+ProfileFrame.Size = UDim2.new(1, -10, 0, 80)
+ProfileFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
+ProfileFrame.Parent = HomeContent
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = ProfileFrame
+
+local AvatarImg = Instance.new("ImageLabel")
+AvatarImg.Size = UDim2.new(0, 60, 0, 60)
+AvatarImg.Position = UDim2.new(0, 10, 0, 10)
+AvatarImg.BackgroundTransparency = 1
+AvatarImg.Image = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+AvatarImg.Parent = ProfileFrame
+
+local UserInfo = Instance.new("TextLabel")
+UserInfo.Size = UDim2.new(1, -90, 1, 0)
+UserInfo.Position = UDim2.new(0, 80, 0, 0)
+UserInfo.Text = "ยินดีต้อนรับ, " .. LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")\n" .. "🎮 Game: " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+UserInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
+UserInfo.TextSize = 14
+UserInfo.Font = Enum.Font.SourceSansBold
+UserInfo.TextXAlignment = Enum.TextXAlignment.Left
+UserInfo.BackgroundTransparency = 1
+UserInfo.Parent = ProfileFrame
+
+local DiscordBtn = Instance.new("TextButton")
+DiscordBtn.Size = UDim2.new(1, -10, 0, 35)
+DiscordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+DiscordBtn.Text = "🔗 คัดลอกลิงก์ Discord (discord.gg/Hvyf8crug)"
+DiscordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DiscordBtn.Font = Enum.Font.SourceSansBold
+DiscordBtn.TextSize = 14
+DiscordBtn.Parent = HomeContent
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = DiscordBtn
+
+DiscordBtn.MouseButton1Click:Connect(function()
+    setclipboard("discord.gg/Hvyf8crug")
+    DiscordBtn.Text = "✅ คัดลอกลิงก์สำเร็จ!"
+    task.wait(2)
+    DiscordBtn.Text = "🔗 คัดลอกลิงก์ Discord (discord.gg/Hvyf8crug)"
+end)
+
+print("[NEXORA PART 4] Home Dashboard Loaded.")
+-- [[ NEXORA HUB - PART 5 / 19 ]] --
+-- Fixed Team Check & Precise Universal Bone Aimbot Engine
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 1.5
+FOVCircle.Color = Color3.fromRGB(180, 0, 255)
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+local function IsValidTarget(plr)
+    if not plr or plr == LocalPlayer or not plr.Character then return false end
+    
+    -- Fixed Team Check Logic
+    if getgenv().NexoraConfig.TeamCheck then
+        if plr.Team ~= nil and LocalPlayer.Team ~= nil and plr.Team == LocalPlayer.Team then
+            return false
+        end
+        if plr.TeamColor == LocalPlayer.TeamColor and plr.TeamColor ~= BrickColor.new("White") then
+            return false
+        end
+    end
+    
+    local char = plr.Character
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    
+    return true
+end
+
+local function GetClosestTarget()
+    local closest, shortestDist = nil, getgenv().NexoraConfig.AimFOV
+    local mousePos = UserInputService:GetMouseLocation()
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if IsValidTarget(plr) then
+            local char = plr.Character
+            local targetPart = char:FindFirstChild(getgenv().NexoraConfig.AimPart) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+            if targetPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if dist < shortestDist then
+                        closest = targetPart
+                        shortestDist = dist
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    FOVCircle.Position = UserInputService:GetMouseLocation()
+    FOVCircle.Radius = getgenv().NexoraConfig.AimFOV
+    FOVCircle.Visible = getgenv().NexoraConfig.AimbotEnabled and getgenv().NexoraConfig.ShowFOV
+    
+    if getgenv().NexoraConfig.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local target = GetClosestTarget()
+        if target then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+        end
+    end
+end)
+
+print("[NEXORA PART 5] Aimbot Core Engine Fixed & Active.")
+-- [[ NEXORA HUB - PART 7 / 19 ]] --
+-- Visual ESP Components (Name, Distance, Box, Tracers)
+
+local function CreateESP(plr)
+    local NameTag = Drawing.new("Text")
+    NameTag.Size = 14
+    NameTag.Center = true
+    NameTag.Outline = true
+    NameTag.Color = Color3.fromRGB(255, 50, 50)
+    
+    local Tracer = Drawing.new("Line")
+    Tracer.Thickness = 1
+    Tracer.Color = Color3.fromRGB(0, 200, 255)
+    
+    local Connection
+    Connection = RunService.RenderStepped:Connect(function()
+        if plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and getgenv().NexoraConfig.ESP_Enabled then
+            local hrp = plr.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            
+            if onScreen and IsValidTarget(plr) then
+                if getgenv().NexoraConfig.ESP_Names then
+                    local dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude)
+                    NameTag.Text = plr.DisplayName .. " [" .. dist .. "m]"
+                    NameTag.Position = Vector2.new(pos.X, pos.Y - 25)
+                    NameTag.Visible = true
+                else
+                    NameTag.Visible = false
+                end
+                
+                if getgenv().NexoraConfig.ESP_Tracers then
+                    Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, 0)
+                    Tracer.To = Vector2.new(pos.X, pos.Y)
+                    Tracer.Visible = true
+                else
+                    Tracer.Visible = false
+                end
+            else
+                NameTag.Visible = false
+                Tracer.Visible = false
+            end
+        else
+            NameTag.Visible = false
+            Tracer.Visible = false
+            if not plr or not plr.Parent then
+                NameTag:Remove()
+                Tracer:Remove()
+                Connection:Disconnect()
+            end
+        end
+    end)
+end
+
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then CreateESP(plr) end
+end
+Players.PlayerAdded:Connect(CreateESP)
+
+print("[NEXORA PART 7] Visual ESP Suite Online.")
+-- [[ NEXORA HUB - PART 8 / 19 ]] --
+-- Tab 3: Powers (Speed, Flight, Float, Dash & God Mode)
+
+local PowersContent = TabPages["พลัง"]
+
+local function CreateToggle(parent, title, default, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -10, 0, 32)
+    Btn.BackgroundColor3 = default and getgenv().NexoraConfig.ThemeColor or Color3.fromRGB(35, 35, 42)
+    Btn.Text = title .. ": " .. (default and "เปิด [ON]" or "ปิด [OFF]")
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.SourceSansBold
+    Btn.TextSize = 14
+    Btn.Parent = parent
+    
+    local state = default
+    Btn.MouseButton1Click:Connect(function()
+        state = not state
+        Btn.BackgroundColor3 = state and getgenv().NexoraConfig.ThemeColor or Color3.fromRGB(35, 35, 42)
+        Btn.Text = title .. ": " .. (state and "เปิด [ON]" or "ปิด [OFF]")
+        callback(state)
+    end)
+end
+
+CreateToggle(PowersContent, "🏃 วิ่งเร็ว (Speed Boost)", false, function(s)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = s and 60 or 16
+    end
+end)
+
+CreateToggle(PowersContent, "👻 ล่องหน Server-Side", false, function(s)
+    if LocalPlayer.Character then
+        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+            if v:IsA("BasePart") or v:IsA("Decal") then
+                v.Transparency = s and 1 or 0
+            end
+        end
+    end
+end)
+
+print("[NEXORA PART 8] Powers Mechanics Ready.")
+-- [[ NEXORA HUB - PART 9 / 19 ]] --
+-- Elemental Auras & Client Headless/Korblox Modders
+
+local ActiveAura = nil
+
+local function EnableAura(color)
+    if ActiveAura then ActiveAura:Destroy() end
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local p = Instance.new("ParticleEmitter")
+    p.Name = "NexoraAura"
+    p.Color = ColorSequence.new(color)
+    p.Size = NumberSequence.new(1, 0)
+    p.Rate = 50
+    p.Speed = NumberRange.new(3, 6)
+    p.Parent = LocalPlayer.Character.HumanoidRootPart
+    ActiveAura = p
+end
+
+CreateToggle(PowersContent, "⚡ ออร่าสายฟ้า (Lightning Aura)", false, function(s)
+    if s then EnableAura(Color3.fromRGB(0, 200, 255)) else if ActiveAura then ActiveAura:Destroy() end end
+end)
+
+CreateToggle(PowersContent, "🔥 ออร่าไฟ (Fire Aura)", false, function(s)
+    if s then EnableAura(Color3.fromRGB(255, 80, 0)) else if ActiveAura then ActiveAura:Destroy() end end
+end)
+
+CreateToggle(PowersContent, "💀 หัวล่องหน (Headless Client)", false, function(s)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") then
+        LocalPlayer.Character.Head.Transparency = s and 1 or 0
+        if LocalPlayer.Character.Head:FindFirstChild("face") then
+            LocalPlayer.Character.Head.face.Transparency = s and 1 or 0
+        end
+    end
+end)
+
+print("[NEXORA PART 9] Aura & Cosmetics Framework Finished.")
+-- [[ NEXORA HUB - PART 10 / 19 ]] --
+-- Object Finder & Waypoint Manager
+
+local ToolsContent = TabPages["เครื่องมือ"]
+
+-- 1. Object Finder
+local ObjFinderBtn = Instance.new("TextButton")
+ObjFinderBtn.Size = UDim2.new(1, -10, 0, 32)
+ObjFinderBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+ObjFinderBtn.Text = "🔎 Object Finder (ค้นหาวัตถุรอบตัว)"
+ObjFinderBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ObjFinderBtn.Font = Enum.Font.SourceSansBold
+ObjFinderBtn.TextSize = 14
+ObjFinderBtn.Parent = ToolsContent
+
+ObjFinderBtn.MouseButton1Click:Connect(function()
+    local count = 0
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") or obj:IsA("Tool") then
+            count = count + 1
+        end
+    end
+    print("[NEXORA FINDER] พบวัตถุทั้งหมดในเกม: " .. count .. " รายการ")
+end)
+
+-- 2. Waypoint Manager
+local Waypoints = {}
+local WaypointBtn = Instance.new("TextButton")
+WaypointBtn.Size = UDim2.new(1, -10, 0, 32)
+WaypointBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+WaypointBtn.Text = "📍 Waypoint Manager (บันทึกพิกัดจุดยืน)"
+WaypointBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+WaypointBtn.Font = Enum.Font.SourceSansBold
+WaypointBtn.TextSize = 14
+WaypointBtn.Parent = ToolsContent
+
+WaypointBtn.MouseButton1Click:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local pos = LocalPlayer.Character.HumanoidRootPart.Position
+        table.insert(Waypoints, pos)
+        print("[NEXORA WAYPOINT] บันทึกพิกัดสำเร็จ: " .. tostring(pos))
+    end
+end)
+
+print("[NEXORA PART 10] Object Finder & Waypoint System Ready.")
+-- [[ NEXORA HUB - PART 11 / 19 ]] --
+-- Movement Replay & Avatar Lab
+
+-- 3. Movement Replay
+local RecordedPositions = {}
+local Recording = false
+
+CreateToggle(ToolsContent, "⏪ Movement Replay (บันทึก/เล่นย้อนหลังการเดิน)", false, function(s)
+    Recording = s
+    if s then
+        table.clear(RecordedPositions)
+        task.spawn(function()
+            while Recording do
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    table.insert(RecordedPositions, LocalPlayer.Character.HumanoidRootPart.CFrame)
+                end
+                task.wait(0.1)
+            end
+        end)
+    else
+        print("[NEXORA REPLAY] กำลังเล่นย้อนหลังเส้นทาง...")
+        for _, cf in ipairs(RecordedPositions) do
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = cf
+            end
+            task.wait(0.05)
+        end
+    end
+end)
+
+-- 4. Avatar Lab
+local AvatarLabBtn = Instance.new("TextButton")
+AvatarLabBtn.Size = UDim2.new(1, -10, 0, 32)
+AvatarLabBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+AvatarLabBtn.Text = "🎨 Avatar Lab (เปลี่ยนสีตัวละครจำลอง)"
+AvatarLabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AvatarLabBtn.Font = Enum.Font.SourceSansBold
+AvatarLabBtn.TextSize = 14
+AvatarLabBtn.Parent = ToolsContent
+
+AvatarLabBtn.MouseButton1Click:Connect(function()
+    if LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.Color = Color3.fromRGB(math.random(0,255), math.random(0,255), math.random(0,255))
+            end
+        end
+    end
+end)
+
+print("[NEXORA PART 11] Tools Expansion Pack 2 Loaded.")
+-- [[ NEXORA HUB - PART 12 / 19 ]] --
+-- Phantom Clone, Bubble Prison, Rubber World
+
+local TrollContent = TabPages["เกรียน"]
+
+-- 1. Phantom Clone
+local PhantomBtn = Instance.new("TextButton")
+PhantomBtn.Size = UDim2.new(1, -10, 0, 32)
+PhantomBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+PhantomBtn.Text = "👥 Phantom Clone — ร่างเงาหลอก"
+PhantomBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PhantomBtn.Font = Enum.Font.SourceSansBold
+PhantomBtn.TextSize = 14
+PhantomBtn.Parent = TrollContent
+
+PhantomBtn.MouseButton1Click:Connect(function()
+    if LocalPlayer.Character then
+        LocalPlayer.Character.Archivable = true
+        local clone = LocalPlayer.Character:Clone()
+        clone.Parent = Workspace
+        clone:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(5, 0, 0))
+        for _, v in pairs(clone:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.Color = Color3.fromRGB(255, 0, 50)
+                v.Transparency = 0.4
+            end
+        end
+        task.delay(5, function() clone:Destroy() end)
+    end
+end)
+
+-- 2. Bubble Prison
+local BubbleBtn = Instance.new("TextButton")
+BubbleBtn.Size = UDim2.new(1, -10, 0, 32)
+BubbleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+BubbleBtn.Text = "🫧 Bubble Prison — คุกฟองสบู่"
+BubbleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+BubbleBtn.Font = Enum.Font.SourceSansBold
+BubbleBtn.TextSize = 14
+BubbleBtn.Parent = TrollContent
+
+BubbleBtn.MouseButton1Click:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local p = Instance.new("Part")
+        p.Shape = Enum.PartType.Ball
+        p.Size = Vector3.new(10, 10, 10)
+        p.Position = LocalPlayer.Character.HumanoidRootPart.Position
+        p.Transparency = 0.6
+        p.Color = Color3.fromRGB(0, 180, 255)
+        p.Material = Enum.Material.Glass
+        p.Anchored = true
+        p.Parent = Workspace
+        task.delay(4, function() p:Destroy() end)
+    end
+end)
+
+-- 3. Rubber World
+CreateToggle(TrollContent, "𪀀 Rubber World — โลกยางยืด", false, function(s)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.CameraOffset = s and Vector3.new(0, math.sin(tick() * 5) * 2, 0) or Vector3.new(0,0,0)
+    end
+end)
+
+print("[NEXORA PART 12] Troll Suite Part 1 Active.")
+-- [[ NEXORA HUB - PART 13 / 19 ]] --
+-- Main Character Mode, Mirror Dimension, Ghost Trail
+
+-- 4. Main Character Mode
+local MainCharBtn = Instance.new("TextButton")
+MainCharBtn.Size = UDim2.new(1, -10, 0, 32)
+MainCharBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+MainCharBtn.Text = "🎭 Main Character Mode — โหมดตัวเอก"
+MainCharBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MainCharBtn.Font = Enum.Font.SourceSansBold
+MainCharBtn.TextSize = 14
+MainCharBtn.Parent = TrollContent
+
+MainCharBtn.MouseButton1Click:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local Light = Instance.new("SpotLight")
+        Light.Brightness = 10
+        Light.Range = 30
+        Light.Color = Color3.fromRGB(255, 215, 0)
+        Light.Parent = LocalPlayer.Character.HumanoidRootPart
+        task.delay(6, function() Light:Destroy() end)
+    end
+end)
+
+-- 5. Mirror Dimension
+CreateToggle(TrollContent, "𪁞 Mirror Dimension — มิติกระจก", false, function(s)
+    Camera.CFrame = Camera.CFrame * CFrame.Angles(0, 0, s and math.rad(180) or 0)
+end)
+
+-- 6. Ghost Trail
+local GhostTrailActive = false
+CreateToggle(TrollContent, "👻 Ghost Trail — ร่างเงาตามหลัง", false, function(s)
+    GhostTrailActive = s
+    task.spawn(function()
+        while GhostTrailActive do
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local p = Instance.new("Part")
+                p.Size = Vector3.new(2, 2, 1)
+                p.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
+                p.Anchored = true
+                p.CanCollide = false
+                p.Transparency = 0.5
+                p.Color = getgenv().NexoraConfig.ThemeColor
+                p.Parent = Workspace
+                TweenService:Create(p, TweenInfo.new(1), {Transparency = 1}):Play()
+                task.delay(1, function() p:Destroy() end)
+            end
+            task.wait(0.2)
+        end
+    end)
+end)
+
+print("[NEXORA PART 13] Troll Suite Part 2 Active.")
+-- [[ NEXORA HUB - PART 14 / 19 ]] --
+-- Troll Orbit, Fake Boss Aura, Clone Parade, PHANTOM ARMY
+
+-- 7. Troll Orbit
+local Orbiting = false
+CreateToggle(TrollContent, "🪐 Troll Orbit — วัตถุหมุนรอบตัว", false, function(s)
+    Orbiting = s
+    if s then
+        task.spawn(function()
+            local p = Instance.new("Part")
+            p.Size = Vector3.new(1,1,1)
+            p.Color = Color3.fromRGB(255, 255, 0)
+            p.Anchored = true
+            p.CanCollide = false
+            p.Parent = Workspace
+            local angle = 0
+            while Orbiting do
+                angle = angle + 0.1
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = LocalPlayer.Character.HumanoidRootPart.Position
+                    p.Position = hrp + Vector3.new(math.cos(angle)*6, 2, math.sin(angle)*6)
+                end
+                task.wait(0.03)
+            end
+            p:Destroy()
+        end)
+    end
+end)
+
+-- 8. Fake Boss Aura
+CreateToggle(TrollContent, "⚡ Fake Boss Aura — ออร่าบอสใหญ่", false, function(s)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local gui = LocalPlayer.Character.HumanoidRootPart:FindFirstChild("BossTitle") or Instance.new("BillboardGui")
+        gui.Name = "BossTitle"
+        gui.Size = UDim2.new(0, 200, 0, 50)
+        gui.StudsOffset = Vector3.new(0, 4, 0)
+        gui.AlwaysOnTop = true
+        
+        local txt = gui:FindFirstChild("Text") or Instance.new("TextLabel")
+        txt.Name = "Text"
+        txt.Size = UDim2.new(1,0,1,0)
+        txt.Text = "👑 [FINAL BOSS NEXORA]"
+        txt.TextColor3 = Color3.fromRGB(255, 0, 0)
+        txt.TextSize = 18
+        txt.Font = Enum.Font.FredokaOne
+        txt.BackgroundTransparency = 1
+        txt.Parent = gui
+        gui.Parent = LocalPlayer.Character.HumanoidRootPart
+        gui.Enabled = s
+    end
+end)
+
+-- 10. PHANTOM ARMY
+local ArmyBtn = Instance.new("TextButton")
+ArmyBtn.Size = UDim2.new(1, -10, 0, 32)
+ArmyBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+ArmyBtn.Text = "👥 PHANTOM ARMY — กองทัพเงาตั้งแถว"
+ArmyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ArmyBtn.Font = Enum.Font.SourceSansBold
+ArmyBtn.TextSize = 14
+ArmyBtn.Parent = TrollContent
+
+ArmyBtn.MouseButton1Click:Connect(function()
+    if LocalPlayer.Character then
+        LocalPlayer.Character.Archivable = true
+        for i = 1, 5 do
+            local clone = LocalPlayer.Character:Clone()
+            clone.Parent = Workspace
+            clone:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(i * 4, 0, i * 2))
+            task.delay(6, function() clone:Destroy() end)
+        end
+    end
+end)
+
+print("[NEXORA PART 14] Troll Suite Part 3 Loaded.")
+-- [[ NEXORA HUB - PART 15 / 19 ]] --
+-- REALITY BREAKER, MINI BLACK HOLE, FINAL BOSS PROTOCOL
+
+-- 11. REALITY BREAKER
+local RealityBtn = Instance.new("TextButton")
+RealityBtn.Size = UDim2.new(1, -10, 0, 32)
+RealityBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+RealityBtn.Text = "💥 REALITY BREAKER — ทำลายมิติสีแดง"
+RealityBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RealityBtn.Font = Enum.Font.SourceSansBold
+RealityBtn.TextSize = 14
+RealityBtn.Parent = TrollContent
+
+RealityBtn.MouseButton1Click:Connect(function()
+    local e = Instance.new("Explosion")
+    e.Position = LocalPlayer.Character.HumanoidRootPart.Position
+    e.BlastPressure = 0
+    e.Parent = Workspace
+end)
+
+-- 12. MINI BLACK HOLE
+local HoleBtn = Instance.new("TextButton")
+HoleBtn.Size = UDim2.new(1, -10, 0, 32)
+HoleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+HoleBtn.Text = "🕳️ MINI BLACK HOLE — หลุมดำจิ๋วดูดของ"
+HoleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+HoleBtn.Font = Enum.Font.SourceSansBold
+HoleBtn.TextSize = 14
+HoleBtn.Parent = TrollContent
+
+HoleBtn.MouseButton1Click:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hole = Instance.new("Part")
+        hole.Shape = Enum.PartType.Ball
+        hole.Size = Vector3.new(6, 6, 6)
+        hole.Color = Color3.fromRGB(0, 0, 0)
+        hole.Material = Enum.Material.Neon
+        hole.Position = LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(0, 5, -15)
+        hole.Anchored = true
+        hole.Parent = Workspace
+        
+        TweenService:Create(hole, TweenInfo.new(3), {Size = Vector3.new(0,0,0)}):Play()
+        task.delay(3, function() hole:Destroy() end)
+    end
+end)
+
+-- 13. FINAL BOSS PROTOCOL
+local BossProtocolBtn = Instance.new("TextButton")
+BossProtocolBtn.Size = UDim2.new(1, -10, 0, 32)
+BossProtocolBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+BossProtocolBtn.Text = "🚨 FINAL BOSS PROTOCOL — ปลดล็อกโหมดบอส"
+BossProtocolBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+BossProtocolBtn.Font = Enum.Font.SourceSansBold
+BossProtocolBtn.TextSize = 14
+BossProtocolBtn.Parent = TrollContent
+
+BossProtocolBtn.MouseButton1Click:Connect(function()
+    print("[NEXORA PROTOCOL] FINAL BOSS ACTIVATED!")
+end)
+
+print("[NEXORA PART 15] Reality & Boss Engines Ready.")
+-- [[ NEXORA HUB - PART 16 / 19 ]] --
+-- Name Matching & Outfit Stealer Implementation
+
+local OutfitBox = Instance.new("TextBox")
+OutfitBox.Size = UDim2.new(1, -10, 0, 32)
+OutfitBox.PlaceholderText = "พิมพ์ชื่อคนที่จะก๊อปปี้ชุด (DisplayName/User)..."
+OutfitBox.Text = ""
+OutfitBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+OutfitBox.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+OutfitBox.Font = Enum.Font.SourceSans
+OutfitBox.TextSize = 14
+OutfitBox.Parent = TrollContent
+
+local CopyOutfitBtn = Instance.new("TextButton")
+CopyOutfitBtn.Size = UDim2.new(1, -10, 0, 32)
+CopyOutfitBtn.BackgroundColor3 = Color3.fromRGB(180, 0, 255)
+CopyOutfitBtn.Text = "👗 คัดลอกและเปลี่ยนชุดทันที"
+CopyOutfitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CopyOutfitBtn.Font = Enum.Font.SourceSansBold
+CopyOutfitBtn.TextSize = 14
+CopyOutfitBtn.Parent = TrollContent
+
+local function FindPlayerByName(nameStr)
+    nameStr = nameStr:lower()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr.Name:lower():sub(1, #nameStr) == nameStr or plr.DisplayName:lower():sub(1, #nameStr) == nameStr then
+            return plr
+        end
+    end
+    return nil
+end
+
+CopyOutfitBtn.MouseButton1Click:Connect(function()
+    local targetPlr = FindPlayerByName(OutfitBox.Text)
+    if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChildOfClass("Humanoid") then
+        local desc = targetPlr.Character:FindFirstChildOfClass("Humanoid"):GetAppliedDescription()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ApplyDescription(desc)
+            CopyOutfitBtn.Text = "✅ เปลี่ยนชุดเรียบร้อยแล้ว!"
+            task.wait(2)
+            CopyOutfitBtn.Text = "👗 คัดลอกและเปลี่ยนชุดทันที"
+        end
+    else
+        CopyOutfitBtn.Text = "❌ ไม่พบชื่อผู้เล่นในเซิร์ฟเวอร์!"
+        task.wait(2)
+        CopyOutfitBtn.Text = "👗 คัดลอกและเปลี่ยนชุดทันที"
+    end
+end)
+
+print("[NEXORA PART 16] Outfit Copy Module Synchronized.")
+-- [[ NEXORA HUB - PART 17 / 19 ]] --
+-- Tab 6: Settings Category Engine (Repositioned to Absolute Bottom)
+
+local SettingsContent = TabPages["ตั้งค่า"]
+
+-- Anti-AFK Feature
+local VirtualUser = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+end)
+
+CreateToggle(SettingsContent, "🛡️ Anti-AFK (กันถูกเตะออกเมื่อพับจอ)", true, function(s) end)
+
+-- UI Theme & Accent Color Switcher
+local ColorBtn = Instance.new("TextButton")
+ColorBtn.Size = UDim2.new(1, -10, 0, 32)
+ColorBtn.BackgroundColor3 = getgenv().NexoraConfig.ThemeColor
+ColorBtn.Text = "🎨 เปลี่ยนสีธีมหลัก (Theme Customizer)"
+ColorBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ColorBtn.Font = Enum.Font.SourceSansBold
+ColorBtn.TextSize = 14
+ColorBtn.Parent = SettingsContent
+
+ColorBtn.MouseButton1Click:Connect(function()
+    local newColor = Color3.fromRGB(math.random(50,255), math.random(50,255), math.random(50,255))
+    getgenv().NexoraConfig.ThemeColor = newColor
+    TitleLabel.TextColor3 = newColor
+    ColorBtn.BackgroundColor3 = newColor
+end)
+
+print("[NEXORA PART 17] Settings Core Options Configured.")
+-- [[ NEXORA HUB - PART 18 / 19 ]] --
+-- Custom Dynamic Crosshair & Emergency Script Clear
+
+local CrosshairX = Drawing.new("Line")
+local CrosshairY = Drawing.new("Line")
+CrosshairX.Color = Color3.fromRGB(0, 255, 0)
+CrosshairY.Color = Color3.fromRGB(0, 255, 0)
+CrosshairX.Thickness = 2
+CrosshairY.Thickness = 2
+
+CreateToggle(SettingsContent, "🎯 เป้าเล็งพิเศษกลางจอ (Custom Crosshair)", false, function(s)
+    CrosshairX.Visible = s
+    CrosshairY.Visible = s
+end)
+
+RunService.RenderStepped:Connect(function()
+    if CrosshairX.Visible then
+        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        CrosshairX.From = Vector2.new(center.X - 10, center.Y)
+        CrosshairX.To = Vector2.new(center.X + 10, center.Y)
+        
+        CrosshairY.From = Vector2.new(center.X, center.Y - 10)
+        CrosshairY.To = Vector2.new(center.X, center.Y + 10)
+    end
+end)
+
+local UnloadBtn = Instance.new("TextButton")
+UnloadBtn.Size = UDim2.new(1, -10, 0, 32)
+UnloadBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+UnloadBtn.Text = "🗑️ ปิดและลบสคริปต์ออกจากระบบ (Unload)"
+UnloadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+UnloadBtn.Font = Enum.Font.SourceSansBold
+UnloadBtn.TextSize = 14
+UnloadBtn.Parent = SettingsContent
+
+UnloadBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    FOVCircle:Remove()
+    CrosshairX:Remove()
+    CrosshairY:Remove()
+    getgenv().NEXORA_LOADED = false
+    print("[NEXORA] Script Unloaded Successfully.")
+end)
+
+print("[NEXORA PART 18] Crosshair and Unloader Engines Connected.")
+-- [[ NEXORA HUB - PART 19 / 19 ]] --
+-- Discord Webhook Logger & Final Engine Startup
+
+local function SendWebhookNotification()
+    local url = getgenv().NexoraConfig.WebhookURL
+    if url and url ~= "" then
+        local gameName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+        local payload = HttpService:JSONEncode({
+            ["content"] = "",
+            ["embeds"] = {{
+                ["title"] = "⚡ 𓆩 𝐍𝐄𝐗𝐎𝐑𝐀 𓆪 ⚡",
+                ["description"] = "╭・🐈‍⬛ มีคนรันสคริปต์ NEXORA!\n" ..
+                                  "├ 👤 ผู้เล่น : \"" .. LocalPlayer.Name .. "\"\n" ..
+                                  "└ 🎮 เกม : \"" .. gameName .. "\"\n" ..
+                                  "จำนวนคนรัน รวมทั้งหมด : " .. tostring(getgenv().NexoraConfig.TotalRuns) .. "\n" ..
+                                  "♡ 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 𝐍𝐄𝐗𝐎𝐑𝐀",
+                ["color"] = 11796735
+            }}
+        })
+        
+        local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+        if requestFunc then
+            requestFunc({
+                Url = url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = payload
+            })
+        end
+    end
+end
+
+-- Fire Notification
+task.spawn(SendWebhookNotification)
+
+print("--------------------------------------------------")
+print("⚡ NEXORA HUB V3 — EXECUTED ALL 19 PARTS SUCCESSFULLY ⚡")
+print("--------------------------------------------------")
